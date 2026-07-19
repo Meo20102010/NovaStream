@@ -29,6 +29,7 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
 export async function getUser(request: NextRequest): Promise<JWTPayload | null> {
   const authHeader = request.headers.get('authorization');
   const apiKey = request.headers.get('x-api-key');
+  const tokenCookie = request.cookies.get('token')?.value;
 
   if (apiKey) {
     const prisma = (await import('./db')).default;
@@ -41,8 +42,14 @@ export async function getUser(request: NextRequest): Promise<JWTPayload | null> 
     return { id: key.user.id, role: key.user.role, email: key.user.email };
   }
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  const token = authHeader.substring(7);
+  let token: string | null = null;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else if (tokenCookie) {
+    token = tokenCookie;
+  }
+
+  if (!token) return null;
   return verifyToken(token);
 }
 

@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import api from '../lib/api';
 
+function setTokenCookie(token: string) {
+  if (typeof document === 'undefined') return;
+  const maxAge = 60 * 60 * 24 * 7; // 7 days
+  document.cookie = `token=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; secure; samesite=strict`;
+}
+
+function clearTokenCookie() {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'token=; path=/; max-age=0; secure; samesite=strict';
+}
+
 interface User {
   id: string;
   email: string;
@@ -30,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { data } = await api.post('/api/auth/login', { email, password });
     const { user, token } = data.data;
     localStorage.setItem('token', token);
+    setTokenCookie(token);
     set({ user, token, isAuthenticated: true });
   },
 
@@ -37,11 +49,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     const { data } = await api.post('/api/auth/register', { email, username, password });
     const { user, token } = data.data;
     localStorage.setItem('token', token);
+    setTokenCookie(token);
     set({ user, token, isAuthenticated: true });
   },
 
   logout: () => {
     localStorage.removeItem('token');
+    clearTokenCookie();
     set({ user: null, token: null, isAuthenticated: false });
   },
 
