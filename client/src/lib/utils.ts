@@ -1,10 +1,18 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import { API_URL } from './api';
-
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+export function getSiteUrl(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return '';
 }
 
 export function formatFileSize(bytes: number): string {
@@ -51,5 +59,5 @@ export function getVideoUrl(video: { slug?: string | null; customUrl?: string | 
 }
 
 export function getFullVideoUrl(video: { id: string }): string {
-  return `${API_URL}/api/videos/${video.id}/stream`;
+  return `${getSiteUrl()}/api/videos/${video.id}/stream`;
 }
