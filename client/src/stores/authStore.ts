@@ -67,6 +67,8 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       }
       const { data } = await api.get('/api/auth/me');
+      const token = localStorage.getItem('token');
+      if (token) setTokenCookie(token);
       set({ user: data.data, isAuthenticated: true, isLoading: false });
     } catch {
       localStorage.removeItem('token');
