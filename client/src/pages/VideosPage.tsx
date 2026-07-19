@@ -5,7 +5,9 @@ import VideoCard from '@/components/VideoCard';
 import { SkeletonGrid } from '@/components/Skeleton';
 import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 import { HiSearch, HiFilter } from 'react-icons/hi';
+import toast from 'react-hot-toast';
 
 export default function VideosPage() {
   const [videos, setVideos] = useState<any[]>([]);
@@ -15,6 +17,8 @@ export default function VideosPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [categories, setCategories] = useState<any[]>([]);
+  const { user } = useAuthStore();
+  const canDelete = user?.role === 'ADMIN' || user?.role === 'MODERATOR';
 
   const fetchVideos = useCallback(async () => {
     setIsLoading(true);
@@ -35,6 +39,16 @@ export default function VideosPage() {
   useEffect(() => {
     api.get('/api/categories').then(({ data }) => setCategories(data.data)).catch(() => {});
   }, []);
+
+  const handleDelete = async (video: any) => {
+    try {
+      await api.delete(`/api/videos/${video.id}`);
+      setVideos((prev) => prev.filter((v) => v.id !== video.id));
+      toast.success('Video deleted');
+    } catch {
+      toast.error('Failed to delete video');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -73,7 +87,13 @@ export default function VideosPage() {
       ) : videos.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {videos.map((video, i) => (
-            <VideoCard key={video.id} video={video} index={i} />
+            <VideoCard
+              key={video.id}
+              video={video}
+              index={i}
+              showDelete={canDelete}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       ) : (

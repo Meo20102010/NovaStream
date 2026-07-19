@@ -16,6 +16,7 @@ import {
   HiChip,
   HiLink,
   HiRefresh,
+  HiTrash,
 } from 'react-icons/hi';
 import { formatFileSize, getVideoUrl, getFullVideoUrl } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -83,6 +84,14 @@ export default function AdminPage() {
       setVideos((prev) => prev.map((v) => v.id === videoId ? { ...v, slug: data.data.slug } : v));
       toast.success('URL regenerated');
     } catch { toast.error('Failed to regenerate URL'); }
+  };
+
+  const deleteVideo = async (videoId: string) => {
+    try {
+      await api.delete(`/api/videos/${videoId}`);
+      setVideos((prev) => prev.filter((v) => v.id !== videoId));
+      toast.success('Video deleted');
+    } catch { toast.error('Failed to delete video'); }
   };
 
   const tabs = [
@@ -174,6 +183,16 @@ export default function AdminPage() {
                             className="p-1.5 rounded-lg bg-white/5 hover:bg-primary-500/20 transition-colors"
                           >
                             <HiRefresh className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Delete "${video.title}"?`)) {
+                                deleteVideo(video.id);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-red-500/20 transition-colors"
+                          >
+                            <HiTrash className="w-4 h-4 text-red-400" />
                           </button>
                         </div>
                       </td>

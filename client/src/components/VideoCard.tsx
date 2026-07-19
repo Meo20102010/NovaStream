@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { HiClock, HiEye, HiPlay, HiShare, HiCheck } from 'react-icons/hi';
+import { HiClock, HiEye, HiPlay, HiShare, HiCheck, HiTrash } from 'react-icons/hi';
 import { formatFileSize, formatDuration, timeAgo, getVideoUrl, getResolutionLabel, getFullVideoUrl } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
@@ -26,13 +26,23 @@ interface VideoCardProps {
     createdAt: string;
   };
   index?: number;
+  showDelete?: boolean;
+  onDelete?: (video: VideoCardProps['video']) => void;
 }
 
-export default function VideoCard({ video, index = 0 }: VideoCardProps) {
+export default function VideoCard({ video, index = 0, showDelete, onDelete }: VideoCardProps) {
   const [copied, setCopied] = useState(false);
   const videoUrl = getVideoUrl(video);
   const size = typeof video.size === 'string' ? parseInt(video.size) : video.size ?? 0;
   const views = typeof video.views === 'number' ? video.views : 0;
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (window.confirm(`Delete "${video.title}"?`)) {
+      onDelete?.(video);
+    }
+  };
 
   const copyLink = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -73,12 +83,22 @@ export default function VideoCard({ video, index = 0 }: VideoCardProps) {
             </div>
           </div>
 
-          <button
-            onClick={copyLink}
-            className="absolute top-2 left-2 p-1.5 rounded-lg bg-black/60 hover:bg-primary-500/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all"
-          >
-            {copied ? <HiCheck className="w-4 h-4 text-emerald-400" /> : <HiShare className="w-4 h-4" />}
-          </button>
+          <div className="absolute top-2 left-2 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+            <button
+              onClick={copyLink}
+              className="p-1.5 rounded-lg bg-black/60 hover:bg-primary-500/80 backdrop-blur-sm"
+            >
+              {copied ? <HiCheck className="w-4 h-4 text-emerald-400" /> : <HiShare className="w-4 h-4" />}
+            </button>
+            {showDelete && (
+              <button
+                onClick={handleDelete}
+                className="p-1.5 rounded-lg bg-black/60 hover:bg-red-500/80 backdrop-blur-sm"
+              >
+                <HiTrash className="w-4 h-4 text-red-400" />
+              </button>
+            )}
+          </div>
 
           {video.duration && (
             <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-xs font-mono">
