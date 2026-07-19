@@ -49,7 +49,8 @@ export default function WatchPage() {
     );
   }
 
-  const size = typeof video.size === 'string' ? parseInt(video.size) : video.size;
+  const size = typeof video.size === 'string' ? parseInt(video.size) : video.size ?? 0;
+  const views = typeof video.views === 'number' ? video.views : 0;
   const streamUrl = `/api/videos/${video.id}/stream`;
 
   return (
@@ -78,7 +79,7 @@ export default function WatchPage() {
           </div>
 
           <div className="flex flex-wrap gap-3 text-sm text-gray-400">
-            <span className="flex items-center gap-1"><HiEye className="w-4 h-4" /> {video.views.toLocaleString()} views</span>
+            <span className="flex items-center gap-1"><HiEye className="w-4 h-4" /> {views.toLocaleString()} views</span>
             <span className="flex items-center gap-1"><HiClock className="w-4 h-4" /> {timeAgo(video.createdAt)}</span>
             {video.duration && <span>{formatDuration(video.duration)}</span>}
             <span>{formatFileSize(size)}</span>

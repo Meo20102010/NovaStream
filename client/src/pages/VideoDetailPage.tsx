@@ -28,7 +28,8 @@ export default function VideoDetailPage() {
   if (isLoading) return <SkeletonCard className="w-full h-96" />;
   if (!video) return <div className="text-center py-20 text-gray-400">Video not found</div>;
 
-  const size = typeof video.size === 'string' ? parseInt(video.size) : video.size;
+  const size = typeof video.size === 'string' ? parseInt(video.size) : video.size ?? 0;
+  const views = typeof video.views === 'number' ? video.views : 0;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -60,7 +61,7 @@ export default function VideoDetailPage() {
         </div>
 
         <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-          <span className="flex items-center gap-1"><HiEye className="w-4 h-4" /> {video.views.toLocaleString()} views</span>
+          <span className="flex items-center gap-1"><HiEye className="w-4 h-4" /> {views.toLocaleString()} views</span>
           <span className="flex items-center gap-1"><HiClock className="w-4 h-4" /> {timeAgo(video.createdAt)}</span>
           <span>{formatFileSize(size)}</span>
           {video.duration && <span>{formatDuration(video.duration)}</span>}

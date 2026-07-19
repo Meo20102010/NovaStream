@@ -31,7 +31,8 @@ interface VideoCardProps {
 export default function VideoCard({ video, index = 0 }: VideoCardProps) {
   const [copied, setCopied] = useState(false);
   const videoUrl = getVideoUrl(video);
-  const size = typeof video.size === 'string' ? parseInt(video.size) : video.size;
+  const size = typeof video.size === 'string' ? parseInt(video.size) : video.size ?? 0;
+  const views = typeof video.views === 'number' ? video.views : 0;
 
   const copyLink = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -100,7 +101,7 @@ export default function VideoCard({ video, index = 0 }: VideoCardProps) {
           <div className="flex items-center gap-4 text-xs text-gray-400">
             <span className="flex items-center gap-1">
               <HiEye className="w-3.5 h-3.5" />
-              {video.views.toLocaleString()}
+              {views.toLocaleString()}
             </span>
             <span className="flex items-center gap-1">
               <HiClock className="w-3.5 h-3.5" />

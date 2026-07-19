@@ -39,23 +39,21 @@ export default function HomePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const { data: res } = await api.get('/api/admin/dashboard');
-        setData(res.data);
+        const { data: res } = await api.get('/api/stats/overview');
+        const stats = res.data || {};
+        const fallback = (n: any) => (typeof n === 'number' ? n : 0);
+        setData({
+          totalVideos: fallback(stats.totalVideos),
+          totalUsers: 0,
+          totalViews: fallback(stats.totalViews),
+          totalStorage: fallback(stats.totalStorage),
+          totalUrls: fallback(stats.totalVideos),
+          cpu: 0,
+          ram: 0,
+          recentVideos: [],
+          popularVideos: [],
+        });
       } catch {
-        try {
-          const { data: res } = await api.get('/api/stats/overview');
-          setData({
-            totalVideos: res.data.totalVideos,
-            totalUsers: 0,
-            totalViews: res.data.totalViews,
-            totalStorage: res.data.totalStorage,
-            totalUrls: res.data.totalVideos,
-            cpu: 0,
-            ram: 0,
-            recentVideos: [],
-            popularVideos: [],
-          });
-        } catch {}
       } finally {
         setIsLoading(false);
       }
@@ -92,13 +90,13 @@ export default function HomePage() {
       ) : data && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            <StatCard title="Total Videos" value={data.totalVideos} icon={HiVideoCamera} trend={{ value: 12, isPositive: true }} />
-            <StatCard title="Total Storage" value={formatFileSize(data.totalStorage)} icon={HiCloudUpload} />
-            <StatCard title="Total Views" value={data.totalViews.toLocaleString()} icon={HiEye} trend={{ value: 8, isPositive: true }} />
-            <StatCard title="Active Users" value={data.totalUsers} icon={HiGlobe} trend={{ value: 3, isPositive: true }} />
-            <StatCard title="Total URLs" value={data.totalUrls} icon={HiGlobeAlt} />
-            <StatCard title="CPU Usage" value={`${data.cpu}%`} icon={HiAdjustments} />
-            <StatCard title="RAM Usage" value={`${data.ram}%`} icon={HiChip} />
+            <StatCard title="Total Videos" value={data.totalVideos ?? 0} icon={HiVideoCamera} trend={{ value: 12, isPositive: true }} />
+            <StatCard title="Total Storage" value={formatFileSize(data.totalStorage ?? 0)} icon={HiCloudUpload} />
+            <StatCard title="Total Views" value={(data.totalViews ?? 0).toLocaleString()} icon={HiEye} trend={{ value: 8, isPositive: true }} />
+            <StatCard title="Active Users" value={data.totalUsers ?? 0} icon={HiGlobe} trend={{ value: 3, isPositive: true }} />
+            <StatCard title="Total URLs" value={data.totalUrls ?? 0} icon={HiGlobeAlt} />
+            <StatCard title="CPU Usage" value={`${data.cpu ?? 0}%`} icon={HiAdjustments} />
+            <StatCard title="RAM Usage" value={`${data.ram ?? 0}%`} icon={HiChip} />
             <StatCard title="Server Status" value="Online" icon={HiServer} />
           </div>
 
