@@ -4,9 +4,11 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { upload } from '@vercel/blob/client';
-import { HiCloudUpload, HiX, HiCheckCircle, HiExclamationCircle } from 'react-icons/hi';
+import { HiCloudUpload, HiX, HiCheckCircle, HiExclamationCircle, HiLockClosed } from 'react-icons/hi';
 import api from '@/lib/api';
 import { formatFileSize } from '@/lib/utils';
+import { useAuthStore } from '@/stores/authStore';
+import { useRouter } from 'next/navigation';
 
 interface UploadFile {
   file: File;
@@ -19,6 +21,8 @@ interface UploadFile {
 
 export default function FileUpload() {
   const [uploads, setUploads] = useState<UploadFile[]>([]);
+  const { isAuthenticated, isLoading } = useAuthStore();
+  const router = useRouter();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newUploads = acceptedFiles.map((file) => ({
@@ -100,24 +104,44 @@ export default function FileUpload() {
     setUploads((prev) => prev.filter((_, i) => i !== index));
   };
 
+  if (isLoading) {
+    return (
+      <div className="glass-card rounded-2xl p-12 text-center">
+        <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="mt-4 text-gray-400">Checking authentication...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer ${
-          isDragActive
-            ? 'border-primary-500 bg-primary-500/10 scale-[1.02]'
-            : 'border-white/10 hover:border-primary-500/50 hover:bg-white/5'
-        }`}
-      >
-        <input {...getInputProps()} />
-        <HiCloudUpload className={`w-16 h-16 mx-auto mb-4 ${isDragActive ? 'text-primary-400' : 'text-gray-400'}`} />
-        <p className="text-lg font-medium mb-2">
-          {isDragActive ? 'Drop files here' : 'Drag & drop videos here'}
-        </p>
-        <p className="text-sm text-gray-400">or click to browse</p>
-        <p className="text-xs text-gray-500 mt-2">MP4, WebM, MKV, AVI, MOV, FLV up to 10GB</p>
-      </div>
+      {!isAuthenticated ? (
+        <div className="glass-card rounded-2xl p-12 text-center">
+          <HiLockClosed className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+          <p className="text-lg font-medium mb-2">Log in to upload videos</p>
+          <p className="text-sm text-gray-400 mb-6">You need to be signed in to upload content.</p>
+          <button onClick={() => router.push('/login')} className="btn-primary">
+            Go to Login
+          </button>
+        </div>
+      ) : (
+        <div
+          {...getRootProps()}
+          className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer ${
+            isDragActive
+              ? 'border-primary-500 bg-primary-500/10 scale-[1.02]'
+              : 'border-white/10 hover:border-primary-500/50 hover:bg-white/5'
+          }`}
+        >
+          <input {...getInputProps()} />
+          <HiCloudUpload className={`w-16 h-16 mx-auto mb-4 ${isDragActive ? 'text-primary-400' : 'text-gray-400'}`} />
+          <p className="text-lg font-medium mb-2">
+            {isDragActive ? 'Drop files here' : 'Drag & drop videos here'}
+          </p>
+          <p className="text-sm text-gray-400">or click to browse</p>
+          <p className="text-xs text-gray-500 mt-2">MP4, WebM, MKV, AVI, MOV, FLV up to 10GB</p>
+        </div>
+      )}
 
       <AnimatePresence>
         {uploads.length > 0 && (
