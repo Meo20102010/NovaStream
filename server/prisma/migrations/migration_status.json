@@ -1,0 +1,11 @@
+[
+  {
+    "migration_name": "20250719000000_init_postgresql",
+    "started_at": "2025-07-19T00:00:00.000Z",
+    "finished_at": "2025-07-19T00:00:00.000Z",
+    "rolled_back_at": null,
+    "database_warnings": null,
+    "applied_steps_count": 1,
+    "checksum": "manual"
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "name": "novastream",
+  "version": "1.0.0",
+  "description": "NovaStream - Professional Media Server",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd server && npm run build && cd ../client && npm run build",
+    "start": "concurrently \"npm start:server\" \"npm start:client\"",
+    "start:server": "cd server && npm start",
+    "start:client": "cd client && npm start",
+    "db:migrate": "cd server && npx prisma migrate dev",
+    "db:push": "cd server && npx prisma db push",
+    "db:seed": "cd server && npx tsx prisma/seed.ts",
+    "db:studio": "cd server && npx prisma studio",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "install:all": "cd server && npm install && cd ../client && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
