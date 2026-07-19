@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { HiClock, HiEye, HiPlay, HiShare, HiCheck } from 'react-icons/hi';
 import { formatFileSize, formatDuration, timeAgo, getVideoUrl, getResolutionLabel, getFullVideoUrl } from '@/lib/utils';
-import { API_URL } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 interface VideoCardProps {
@@ -55,7 +54,7 @@ export default function VideoCard({ video, index = 0 }: VideoCardProps) {
         <div className="relative aspect-video rounded-xl overflow-hidden mb-4 bg-dark-900">
           {video.posterPath ? (
             <img
-              src={`${API_URL}/storage/${video.posterPath.split('storage/').pop()}`}
+              src={video.posterPath}
               alt={video.title}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
             />

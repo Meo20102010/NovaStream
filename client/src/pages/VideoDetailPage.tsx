@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import VideoPlayer from '@/components/VideoPlayer';
 import { SkeletonCard } from '@/components/Skeleton';
-import api, { API_URL } from '@/lib/api';
+import api from '@/lib/api';
 import { formatFileSize, formatDuration, timeAgo, getResolutionLabel } from '@/lib/utils';
 import { HiEye, HiClock, HiTag, HiFolder, HiChip, HiShare, HiCheck } from 'react-icons/hi';
 import { getFullVideoUrl } from '@/lib/utils';
@@ -34,8 +34,8 @@ export default function VideoDetailPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <VideoPlayer
         videoId={video.id}
-        src={`${API_URL}/api/videos/${video.id}/stream`}
-        poster={video.posterPath ? `${API_URL}/storage/${video.posterPath.split('storage/').pop()}` : undefined}
+        src={`/api/videos/${video.id}/stream`}
+        poster={video.posterPath || undefined}
         title={video.title}
       />
 

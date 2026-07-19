@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import api, { API_URL } from '@/lib/api';
+import api from '@/lib/api';
 import { formatFileSize, formatDuration, timeAgo, getResolutionLabel, getFullVideoUrl } from '@/lib/utils';
 import { HiClock, HiEye, HiChip, HiShare, HiCheck } from 'react-icons/hi';
 import toast from 'react-hot-toast';
@@ -50,7 +50,7 @@ export default function WatchPage() {
   }
 
   const size = typeof video.size === 'string' ? parseInt(video.size) : video.size;
-  const streamUrl = `${API_URL}/api/videos/${video.id}/stream`;
+  const streamUrl = `/api/videos/${video.id}/stream`;
 
   return (
     <div className="min-h-screen bg-dark-950">
@@ -58,7 +58,7 @@ export default function WatchPage() {
         <div className="bg-black rounded-none md:rounded-2xl overflow-hidden md:mt-6">
           <video
             src={streamUrl}
-            poster={video.posterPath ? `${API_URL}/storage/${video.posterPath.split('storage/').pop()}` : undefined}
+            poster={video.posterPath || undefined}
             controls
             autoPlay
             className="w-full aspect-video"

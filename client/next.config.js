@@ -7,7 +7,7 @@ const nextConfig = {
   },
   outputFileTracingRoot: path.resolve(__dirname),
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '/api',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
   },
 };
 
