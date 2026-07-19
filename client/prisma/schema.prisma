@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      String   @default("VIEWER")
+  avatar    String?
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  videos         Video[]
+  apiKeys        ApiKey[]
+  activityLogs   ActivityLog[]
+  sessions       Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Video {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  filename      String
+  originalName  String
+  mimeType      String
+  size          BigInt
+  duration      Float?
+  width         Int?
+  height        Int?
+  codec         String?
+  fps           Float?
+  bitrate       Int?
+  path          String
+  thumbnailPath String?
+  posterPath    String?
+  slug          String   @unique
+  customUrl     String?  @unique
+  status        String   @default("PROCESSING")
+  isPublic      Boolean  @default(true)
+  views         Int      @default(0)
+  category      String?
+  tags          String   @default("[]")
+  uploadedById  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model UploadChunk {
+  id        String   @id @default(uuid())
+  uploadId  String
+  chunkIndex Int
+  size      Int
+  path      String
+  uploaded  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  uploadSession UploadSession @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+
+  @@unique([uploadId, chunkIndex])
+  @@index([uploadId])
+}
+
+model UploadSession {
+  id             String   @id @default(uuid())
+  filename       String
+  originalName   String
+  mimeType       String
+  totalSize      BigInt
+  totalChunks    Int
+  uploadedChunks Int      @default(0)
+  status         String   @default("PENDING")
+  videoId        String?
+  userId         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  chunks UploadChunk[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  name      String
+  key       String   @unique
+  userId    String
+  isActive  Boolean  @default(true)
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([key])
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  resource  String?
+  details   String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Setting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+  group String @default("general")
+
+  @@index([group])
+}
+
+model SystemStats {
+  id          String   @id @default(uuid())
+  cpu         Float?
+  ram         Float?
+  disk        Float?
+  bandwidth   Float?
+  activeUsers Int      @default(0)
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+}

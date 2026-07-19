@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
+import { upload } from '@vercel/blob/client';
 import { HiCloudUpload, HiX, HiCheckCircle, HiExclamationCircle } from 'react-icons/hi';
 import api from '@/lib/api';
 import { formatFileSize } from '@/lib/utils';
@@ -31,51 +32,47 @@ export default function FileUpload() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'video/*': ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv'] },
-    maxSize: 10 * 1024 * 1024 * 1024,
+    maxSize: 10 * 1024 * 1024 * 1024, // 10GB
     multiple: true,
   });
 
   const startUpload = async (index: number) => {
-    const upload = uploads[index];
-    if (!upload || upload.status === 'uploading' || upload.status === 'completed') return;
+    const uploadFile = uploads[index];
+    if (!uploadFile || uploadFile.status === 'uploading' || uploadFile.status === 'completed') return;
 
     setUploads((prev) =>
       prev.map((u, i) => (i === index ? { ...u, status: 'uploading' } : u))
     );
 
     try {
-      const CHUNK_SIZE = 5 * 1024 * 1024;
-      const totalChunks = Math.ceil(upload.file.size / CHUNK_SIZE);
-
-      const { data } = await api.post('/api/uploads/init', {
-        filename: upload.file.name,
-        mimeType: upload.file.type,
-        totalSize: upload.file.size,
-        totalChunks,
+      // 1. Initialize upload session on our server
+      const { data: initData } = await api.post('/api/uploads/init', {
+        filename: uploadFile.file.name,
+        mimeType: uploadFile.file.type || 'application/octet-stream',
+        totalSize: uploadFile.file.size,
+        totalChunks: Math.ceil(uploadFile.file.size / (5 * 1024 * 1024)),
       });
 
-      const uploadId = data.data.uploadId;
+      const uploadId = initData.data.uploadId;
 
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, upload.file.size);
-        const chunk = upload.file.slice(start, end);
+      // 2. Upload directly to Vercel Blob (handles large files & multipart automatically)
+      const blob: Awaited<ReturnType<typeof upload>> = await upload(uploadFile.file.name, uploadFile.file, {
+        access: 'public',
+        handleUploadUrl: '/api/uploads/token',
+        clientPayload: JSON.stringify({ uploadId }),
+        onUploadProgress: ({ loaded, total, percentage }) => {
+          setUploads((prev) =>
+            prev.map((u, i) =>
+              i === index ? { ...u, progress: Math.round(percentage) } : u
+            )
+          );
+        },
+      });
 
-        const formData = new FormData();
-        formData.append('chunk', chunk, `chunk_${i}`);
-
-        await api.post(`/api/uploads/${uploadId}/chunk/${i}`, formData, {
-          onUploadProgress: (e) => {
-            const chunkProgress = e.loaded / (e.total || 1);
-            const overallProgress = ((i + chunkProgress) / totalChunks) * 100;
-            setUploads((prev) =>
-              prev.map((u, idx) => (idx === index ? { ...u, progress: overallProgress } : u))
-            );
-          },
-        });
-      }
-
-      const { data: completeData } = await api.post(`/api/uploads/${uploadId}/complete`);
+      // 3. Tell our server the upload is complete and create the Video record
+      const { data: completeData } = await api.post(`/api/uploads/${uploadId}/complete`, {
+        blobUrl: blob.url,
+      });
 
       setUploads((prev) =>
         prev.map((u, i) =>
@@ -85,7 +82,7 @@ export default function FileUpload() {
     } catch (err: any) {
       setUploads((prev) =>
         prev.map((u, i) =>
-          i === index ? { ...u, status: 'error', error: err.message } : u
+          i === index ? { ...u, status: 'error', error: err.message || 'Upload failed' } : u
         )
       );
     }
@@ -119,7 +116,7 @@ export default function FileUpload() {
           {isDragActive ? 'Drop files here' : 'Drag & drop videos here'}
         </p>
         <p className="text-sm text-gray-400">or click to browse</p>
-        <p className="text-xs text-gray-500 mt-2">MP4, WebM, MKV, AVI up to 10GB</p>
+        <p className="text-xs text-gray-500 mt-2">MP4, WebM, MKV, AVI, MOV, FLV up to 10GB</p>
       </div>
 
       <AnimatePresence>
