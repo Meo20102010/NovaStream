@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { upload } from '@vercel/blob/client';
@@ -9,6 +9,7 @@ import api from '@/lib/api';
 import { formatFileSize } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 interface UploadFile {
   file: File;
@@ -21,30 +22,23 @@ interface UploadFile {
 
 export default function FileUpload() {
   const [uploads, setUploads] = useState<UploadFile[]>([]);
+  const uploadsRef = useRef<UploadFile[]>([]);
   const { isAuthenticated, isLoading } = useAuthStore();
   const router = useRouter();
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newUploads = acceptedFiles.map((file) => ({
-      file,
-      progress: 0,
-      status: 'pending' as const,
-    }));
-    setUploads((prev) => [...prev, ...newUploads]);
+  const syncUploads = useCallback((updater: UploadFile[] | ((prev: UploadFile[]) => UploadFile[])) => {
+    setUploads((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      uploadsRef.current = next;
+      return next;
+    });
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: { 'video/*': ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv'] },
-    maxSize: 10 * 1024 * 1024 * 1024, // 10GB
-    multiple: true,
-  });
-
-  const startUpload = async (index: number) => {
-    const uploadFile = uploads[index];
+  const startUpload = useCallback(async (index: number) => {
+    const uploadFile = uploadsRef.current[index];
     if (!uploadFile || uploadFile.status === 'uploading' || uploadFile.status === 'completed') return;
 
-    setUploads((prev) =>
+    syncUploads((prev) =>
       prev.map((u, i) => (i === index ? { ...u, status: 'uploading' } : u))
     );
 
@@ -54,18 +48,21 @@ export default function FileUpload() {
         filename: uploadFile.file.name,
         mimeType: uploadFile.file.type || 'application/octet-stream',
         totalSize: uploadFile.file.size,
-        totalChunks: Math.ceil(uploadFile.file.size / (5 * 1024 * 1024)),
+        totalChunks: Math.ceil(uploadFile.file.size / (5 * 1024 * 1024)) || 1,
       });
 
       const uploadId = initData.data.uploadId;
+      syncUploads((prev) =>
+        prev.map((u, i) => (i === index ? { ...u, uploadId } : u))
+      );
 
-      // 2. Upload directly to Vercel Blob (handles large files & multipart automatically)
+      // 2. Upload directly to Vercel Blob
       const blob: Awaited<ReturnType<typeof upload>> = await upload(uploadFile.file.name, uploadFile.file, {
         access: 'public',
         handleUploadUrl: '/api/uploads/token',
         clientPayload: JSON.stringify({ uploadId }),
-        onUploadProgress: ({ loaded, total, percentage }) => {
-          setUploads((prev) =>
+        onUploadProgress: ({ percentage }) => {
+          syncUploads((prev) =>
             prev.map((u, i) =>
               i === index ? { ...u, progress: Math.round(percentage) } : u
             )
@@ -78,30 +75,60 @@ export default function FileUpload() {
         blobUrl: blob.url,
       });
 
-      setUploads((prev) =>
+      syncUploads((prev) =>
         prev.map((u, i) =>
           i === index ? { ...u, status: 'completed', progress: 100, videoId: completeData.data.videoId } : u
         )
       );
+      toast.success(`Uploaded: ${uploadFile.file.name}`);
     } catch (err: any) {
-      setUploads((prev) =>
+      const message = err?.response?.data?.error?.message || err?.message || 'Upload failed';
+      console.error('Upload error:', err);
+      syncUploads((prev) =>
         prev.map((u, i) =>
-          i === index ? { ...u, status: 'error', error: err.message || 'Upload failed' } : u
+          i === index ? { ...u, status: 'error', error: message } : u
         )
       );
+      toast.error(message);
     }
-  };
+  }, [syncUploads]);
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    const newUploads = acceptedFiles.map((file) => ({
+      file,
+      progress: 0,
+      status: 'pending' as const,
+    }));
+    syncUploads((prev) => {
+      const startIndex = prev.length;
+      const combined = [...prev, ...newUploads];
+      // Auto-start uploads for the newly added files after the next render tick
+      setTimeout(() => {
+        newUploads.forEach((_, offset) => {
+          startUpload(startIndex + offset);
+        });
+      }, 50);
+      return combined;
+    });
+  }, [syncUploads, startUpload]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'video/*': ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv'] },
+    maxSize: 10 * 1024 * 1024 * 1024, // 10GB
+    multiple: true,
+  });
 
   const startAllUploads = () => {
-    uploads.forEach((_, index) => {
-      if (uploads[index].status === 'pending') {
+    uploadsRef.current.forEach((u, index) => {
+      if (u.status === 'pending') {
         startUpload(index);
       }
     });
   };
 
   const removeUpload = (index: number) => {
-    setUploads((prev) => prev.filter((_, i) => i !== index));
+    syncUploads((prev) => prev.filter((_, i) => i !== index));
   };
 
   if (isLoading) {
