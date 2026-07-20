@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { upload } from '@vercel/blob/client';
-import { HiCloudUpload, HiX, HiCheckCircle, HiExclamationCircle, HiLockClosed } from 'react-icons/hi';
+import { HiCloudUpload, HiX, HiCheckCircle, HiExclamationCircle, HiLockClosed, HiRefresh } from 'react-icons/hi';
 import api from '@/lib/api';
 import { formatFileSize } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -12,12 +12,20 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 interface UploadFile {
+  id: string;
   file: File;
   progress: number;
   status: 'pending' | 'uploading' | 'completed' | 'error';
   uploadId?: string;
   videoId?: string;
   error?: string;
+}
+
+let uploadIdCounter = 0;
+
+function generateClientUploadId() {
+  uploadIdCounter += 1;
+  return `u-${Date.now()}-${uploadIdCounter}`;
 }
 
 export default function FileUpload() {
@@ -34,13 +42,17 @@ export default function FileUpload() {
     });
   }, []);
 
-  const startUpload = useCallback(async (index: number) => {
-    const uploadFile = uploadsRef.current[index];
+  const updateUpload = useCallback((clientId: string, patch: Partial<UploadFile>) => {
+    syncUploads((prev) =>
+      prev.map((u) => (u.id === clientId ? { ...u, ...patch } : u))
+    );
+  }, [syncUploads]);
+
+  const startUpload = useCallback(async (clientId: string) => {
+    const uploadFile = uploadsRef.current.find((u) => u.id === clientId);
     if (!uploadFile || uploadFile.status === 'uploading' || uploadFile.status === 'completed') return;
 
-    syncUploads((prev) =>
-      prev.map((u, i) => (i === index ? { ...u, status: 'uploading' } : u))
-    );
+    updateUpload(clientId, { status: 'uploading', progress: 0, error: undefined });
 
     try {
       // 1. Initialize upload session on our server
@@ -52,9 +64,7 @@ export default function FileUpload() {
       });
 
       const uploadId = initData.data.uploadId;
-      syncUploads((prev) =>
-        prev.map((u, i) => (i === index ? { ...u, uploadId } : u))
-      );
+      updateUpload(clientId, { uploadId });
 
       // 2. Upload directly to Vercel Blob
       const blob: Awaited<ReturnType<typeof upload>> = await upload(uploadFile.file.name, uploadFile.file, {
@@ -62,11 +72,7 @@ export default function FileUpload() {
         handleUploadUrl: '/api/uploads/token',
         clientPayload: JSON.stringify({ uploadId }),
         onUploadProgress: ({ percentage }) => {
-          syncUploads((prev) =>
-            prev.map((u, i) =>
-              i === index ? { ...u, progress: Math.round(percentage) } : u
-            )
-          );
+          updateUpload(clientId, { progress: Math.round(percentage) });
         },
       });
 
@@ -75,40 +81,33 @@ export default function FileUpload() {
         blobUrl: blob.url,
       });
 
-      syncUploads((prev) =>
-        prev.map((u, i) =>
-          i === index ? { ...u, status: 'completed', progress: 100, videoId: completeData.data.videoId } : u
-        )
-      );
+      updateUpload(clientId, {
+        status: 'completed',
+        progress: 100,
+        videoId: completeData.data.videoId,
+      });
       toast.success(`Uploaded: ${uploadFile.file.name}`);
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err?.message || 'Upload failed';
       console.error('Upload error:', err);
-      syncUploads((prev) =>
-        prev.map((u, i) =>
-          i === index ? { ...u, status: 'error', error: message } : u
-        )
-      );
+      updateUpload(clientId, { status: 'error', error: message });
       toast.error(message);
     }
-  }, [syncUploads]);
+  }, [updateUpload]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newUploads = acceptedFiles.map((file) => ({
+    const newUploads: UploadFile[] = acceptedFiles.map((file) => ({
+      id: generateClientUploadId(),
       file,
       progress: 0,
-      status: 'pending' as const,
+      status: 'pending',
     }));
-    syncUploads((prev) => {
-      const startIndex = prev.length;
-      const combined = [...prev, ...newUploads];
-      // Auto-start uploads for the newly added files after the next render tick
-      setTimeout(() => {
-        newUploads.forEach((_, offset) => {
-          startUpload(startIndex + offset);
-        });
-      }, 50);
-      return combined;
+
+    syncUploads((prev) => [...prev, ...newUploads]);
+
+    // Auto-start uploads after the state update is committed
+    requestAnimationFrame(() => {
+      newUploads.forEach((u) => startUpload(u.id));
     });
   }, [syncUploads, startUpload]);
 
@@ -119,17 +118,22 @@ export default function FileUpload() {
     multiple: true,
   });
 
-  const startAllUploads = () => {
-    uploadsRef.current.forEach((u, index) => {
+  const startAllPending = () => {
+    uploadsRef.current.forEach((u) => {
       if (u.status === 'pending') {
-        startUpload(index);
+        startUpload(u.id);
       }
     });
   };
 
-  const removeUpload = (index: number) => {
-    syncUploads((prev) => prev.filter((_, i) => i !== index));
+  const removeUpload = (clientId: string) => {
+    syncUploads((prev) => prev.filter((u) => u.id !== clientId));
   };
+
+  // Keep ref in sync on unmount / state changes
+  useEffect(() => {
+    uploadsRef.current = uploads;
+  }, [uploads]);
 
   if (isLoading) {
     return (
@@ -181,15 +185,15 @@ export default function FileUpload() {
             <div className="flex items-center justify-between">
               <h3 className="font-medium">{uploads.length} file(s)</h3>
               {uploads.some((u) => u.status === 'pending') && (
-                <button onClick={startAllUploads} className="btn-primary text-sm py-2 px-4">
+                <button onClick={startAllPending} className="btn-primary text-sm py-2 px-4">
                   Upload All
                 </button>
               )}
             </div>
 
-            {uploads.map((upload, index) => (
+            {uploads.map((upload) => (
               <motion.div
-                key={index}
+                key={upload.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
@@ -207,7 +211,7 @@ export default function FileUpload() {
                           <HiExclamationCircle className="w-5 h-5 text-red-400" />
                         )}
                         <button
-                          onClick={() => removeUpload(index)}
+                          onClick={() => removeUpload(upload.id)}
                           className="p-1 hover:bg-white/10 rounded"
                         >
                           <HiX className="w-4 h-4 text-gray-400" />
@@ -242,10 +246,19 @@ export default function FileUpload() {
 
                   {upload.status === 'pending' && (
                     <button
-                      onClick={() => startUpload(index)}
+                      onClick={() => startUpload(upload.id)}
                       className="btn-primary text-sm py-2 px-4"
                     >
                       Upload
+                    </button>
+                  )}
+                  {upload.status === 'error' && (
+                    <button
+                      onClick={() => startUpload(upload.id)}
+                      className="btn-secondary text-sm py-2 px-4 flex items-center gap-1"
+                    >
+                      <HiRefresh className="w-4 h-4" />
+                      Retry
                     </button>
                   )}
                 </div>
