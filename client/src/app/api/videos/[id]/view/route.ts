@@ -7,8 +7,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params;
     const video = await prisma.video.findUnique({ where: { id } });
     if (!video) return apiError('Video not found', 404);
-    await prisma.video.update({ where: { id }, data: { views: { increment: 1 } } });
-    return apiSuccess({ views: video.views + 1 });
+    const updated = await prisma.video.update({
+      where: { id },
+      data: { views: { increment: 1 } },
+    });
+    return apiSuccess({ views: updated.views });
   } catch (e: any) {
     return apiError(e.message, 500);
   }

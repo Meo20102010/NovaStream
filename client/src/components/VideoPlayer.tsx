@@ -13,6 +13,7 @@ import {
   HiArrowRight,
 } from 'react-icons/hi';
 import { formatDuration } from '@/lib/utils';
+import api from '@/lib/api';
 
 interface VideoPlayerProps {
   videoId: string;
@@ -41,6 +42,39 @@ export default function VideoPlayer({ videoId, src, poster, title }: VideoPlayer
   const [previewX, setPreviewX] = useState(0);
 
   const controlsTimeoutRef = useRef<NodeJS.Timeout>(null);
+  const viewTrackedRef = useRef(false);
+
+  // Track view after 5 seconds of playback
+  useEffect(() => {
+    if (viewTrackedRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    let timeout: NodeJS.Timeout;
+    const onPlay = () => {
+      timeout = setTimeout(() => {
+        if (!viewTrackedRef.current) {
+          api.post(`/api/videos/${videoId}/view`).catch(() => {});
+          viewTrackedRef.current = true;
+        }
+      }, 5000);
+    };
+
+    const onPause = () => {
+      if (timeout) clearTimeout(timeout);
+    };
+
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
+    video.addEventListener('ended', onPause);
+
+    return () => {
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
+      video.removeEventListener('ended', onPause);
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [videoId]);
 
   useEffect(() => {
     const video = videoRef.current;
