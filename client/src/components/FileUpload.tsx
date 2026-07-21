@@ -19,6 +19,7 @@ interface UploadFile {
   uploadId?: string;
   videoId?: string;
   error?: string;
+  attempt: number;
 }
 
 let uploadIdCounter = 0;
@@ -28,9 +29,17 @@ function generateClientUploadId() {
   return `u-${Date.now()}-${uploadIdCounter}`;
 }
 
+const MAX_CONCURRENT_UPLOADS = 3;
+const MAX_RETRIES = 3;
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function FileUpload() {
   const [uploads, setUploads] = useState<UploadFile[]>([]);
   const uploadsRef = useRef<UploadFile[]>([]);
+  const activeCountRef = useRef(0);
   const { isAuthenticated, isLoading } = useAuthStore();
   const router = useRouter();
 
@@ -48,11 +57,26 @@ export default function FileUpload() {
     );
   }, [syncUploads]);
 
+  const processQueue = useCallback(() => {
+    const pending = uploadsRef.current.filter((u) => u.status === 'pending');
+    const active = uploadsRef.current.filter((u) => u.status === 'uploading').length;
+    const slots = MAX_CONCURRENT_UPLOADS - active;
+    if (slots <= 0) return;
+
+    pending.slice(0, slots).forEach((u) => {
+      startUpload(u.id);
+    });
+  }, []);
+
   const startUpload = useCallback(async (clientId: string) => {
     const uploadFile = uploadsRef.current.find((u) => u.id === clientId);
     if (!uploadFile || uploadFile.status === 'uploading' || uploadFile.status === 'completed') return;
 
+    activeCountRef.current += 1;
     updateUpload(clientId, { status: 'uploading', progress: 0, error: undefined });
+
+    const attempt = uploadFile.attempt + 1;
+    updateUpload(clientId, { attempt });
 
     try {
       // 1. Initialize upload session on our server
@@ -90,10 +114,25 @@ export default function FileUpload() {
     } catch (err: any) {
       const message = err?.response?.data?.error?.message || err?.message || 'Upload failed';
       console.error('Upload error:', err);
-      updateUpload(clientId, { status: 'error', error: message });
-      toast.error(message);
+
+      if (attempt < MAX_RETRIES) {
+        updateUpload(clientId, {
+          status: 'pending',
+          progress: 0,
+          error: `Retrying... (${attempt}/${MAX_RETRIES})`,
+        });
+        await sleep(2000 * attempt);
+        // Let processQueue pick it up again
+        processQueue();
+      } else {
+        updateUpload(clientId, { status: 'error', error: message });
+        toast.error(`${uploadFile.file.name}: ${message}`);
+      }
+    } finally {
+      activeCountRef.current = Math.max(0, activeCountRef.current - 1);
+      processQueue();
     }
-  }, [updateUpload]);
+  }, [updateUpload, processQueue]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newUploads: UploadFile[] = acceptedFiles.map((file) => ({
@@ -101,15 +140,16 @@ export default function FileUpload() {
       file,
       progress: 0,
       status: 'pending',
+      attempt: 0,
     }));
 
     syncUploads((prev) => [...prev, ...newUploads]);
 
-    // Auto-start uploads after the state update is committed
+    // Start processing queue after state update
     requestAnimationFrame(() => {
-      newUploads.forEach((u) => startUpload(u.id));
+      processQueue();
     });
-  }, [syncUploads, startUpload]);
+  }, [syncUploads, processQueue]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -120,17 +160,18 @@ export default function FileUpload() {
 
   const startAllPending = () => {
     uploadsRef.current.forEach((u) => {
-      if (u.status === 'pending') {
-        startUpload(u.id);
+      if (u.status === 'pending' || u.status === 'error') {
+        updateUpload(u.id, { attempt: 0, status: 'pending' });
       }
     });
+    processQueue();
   };
 
   const removeUpload = (clientId: string) => {
     syncUploads((prev) => prev.filter((u) => u.id !== clientId));
   };
 
-  // Keep ref in sync on unmount / state changes
+  // Keep ref in sync on state changes
   useEffect(() => {
     uploadsRef.current = uploads;
   }, [uploads]);
@@ -184,9 +225,9 @@ export default function FileUpload() {
           >
             <div className="flex items-center justify-between">
               <h3 className="font-medium">{uploads.length} file(s)</h3>
-              {uploads.some((u) => u.status === 'pending') && (
+              {(uploads.some((u) => u.status === 'pending') || uploads.some((u) => u.status === 'error')) && (
                 <button onClick={startAllPending} className="btn-primary text-sm py-2 px-4">
-                  Upload All
+                  {uploads.some((u) => u.status === 'error') ? 'Retry All' : 'Upload All'}
                 </button>
               )}
             </div>
@@ -240,6 +281,8 @@ export default function FileUpload() {
                         ? 'Completed'
                         : upload.status === 'error'
                         ? upload.error || 'Failed'
+                        : upload.status === 'pending' && upload.error
+                        ? upload.error
                         : `${Math.round(upload.progress)}%`}
                     </p>
                   </div>
@@ -254,7 +297,10 @@ export default function FileUpload() {
                   )}
                   {upload.status === 'error' && (
                     <button
-                      onClick={() => startUpload(upload.id)}
+                      onClick={() => {
+                        updateUpload(upload.id, { attempt: 0, status: 'pending', error: undefined });
+                        processQueue();
+                      }}
                       className="btn-secondary text-sm py-2 px-4 flex items-center gap-1"
                     >
                       <HiRefresh className="w-4 h-4" />

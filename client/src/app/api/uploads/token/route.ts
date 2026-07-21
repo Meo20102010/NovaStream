@@ -35,6 +35,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           ],
           maximumSizeInBytes: 10 * 1024 * 1024 * 1024, // 10GB
           addRandomSuffix: false,
+          // Token valid for 24 hours so large uploads over slow networks don't expire
+          validUntil: Date.now() + 24 * 60 * 60 * 1000,
           tokenPayload: JSON.stringify({
             userId: user.id,
             uploadId,
